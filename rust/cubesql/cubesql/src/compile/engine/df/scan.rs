@@ -320,7 +320,9 @@ impl ExecutionPlan for CubeScanExecutionPlan {
         let result = if response.results.len() > 0 {
             response.results[0].clone()
         } else {
-            panic!("err")
+            return Err(DataFusionError::Execution(format!(
+                "Unable to extract result from Cube.js response",
+            )));
         };
 
         Ok(Box::pin(CubeScanMemoryStream::new(
@@ -372,9 +374,6 @@ impl Stream for CubeScanMemoryStream {
         Poll::Ready(if self.index < self.data.len() {
             self.index += 1;
             let batch = &self.data[self.index - 1];
-
-            println!("scan.batch {:?}", batch);
-            println!("scan.schema {:?}", self.schema);
 
             Some(Ok(batch.clone()))
         } else {
