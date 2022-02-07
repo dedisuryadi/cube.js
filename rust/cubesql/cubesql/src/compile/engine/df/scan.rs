@@ -265,7 +265,12 @@ impl CubeScanExecutionPlan {
 
                     Arc::new(builder.finish()) as ArrayRef
                 }
-                _ => unimplemented!(),
+                t => {
+                    return Err(DataFusionError::NotImplemented(format!(
+                        "Type {} is not supported in response hydration from Cube.js",
+                        t,
+                    )))
+                }
             };
 
             columns.push(column);
