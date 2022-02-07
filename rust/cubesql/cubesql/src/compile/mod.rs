@@ -2047,6 +2047,7 @@ mod tests {
     use cubeclient::models::{
         V1CubeMeta, V1CubeMetaDimension, V1CubeMetaMeasure, V1CubeMetaSegment,
     };
+    use insta::assert_json_snapshot;
 
     use crate::mysql::{dataframe::batch_to_dataframe, AuthContext, ConnectionProperties};
     use datafusion::execution::dataframe_impl::DataFrameImpl;
@@ -2810,41 +2811,12 @@ mod tests {
         ];
 
         for [subquery, expected_granularity] in supported_granularities.iter() {
+            let sql = format!("SELECT COUNT(*), {} AS __timestamp FROM KibanaSampleDataEcommerce GROUP BY __timestamp", subquery);
             let query = convert_simple_select(
-                format!("SELECT COUNT(*), {} AS __timestamp FROM KibanaSampleDataEcommerce GROUP BY __timestamp", subquery)
+                sql.clone()
             );
 
-            assert_eq!(
-                query,
-                CompiledQuery {
-                    request: V1LoadRequestQuery {
-                        measures: Some(vec!["KibanaSampleDataEcommerce.count".to_string(),]),
-                        dimensions: Some(vec![]),
-                        segments: Some(vec![]),
-                        time_dimensions: Some(vec![V1LoadRequestQueryTimeDimension {
-                            dimension: "KibanaSampleDataEcommerce.order_date".to_string(),
-                            granularity: Some(expected_granularity.to_string()),
-                            date_range: None,
-                        }]),
-                        order: None,
-                        limit: None,
-                        offset: None,
-                        filters: None
-                    },
-                    meta: vec![
-                        CompiledQueryFieldMeta {
-                            column_from: "KibanaSampleDataEcommerce.count".to_string(),
-                            column_to: "count".to_string(),
-                            column_type: ColumnType::MYSQL_TYPE_LONGLONG,
-                        },
-                        CompiledQueryFieldMeta {
-                            column_from: "KibanaSampleDataEcommerce.order_date".to_string(),
-                            column_to: "__timestamp".to_string(),
-                            column_type: ColumnType::MYSQL_TYPE_STRING,
-                        }
-                    ]
-                }
-            )
+            assert_json_snapshot!(query);
         }
     }
 
@@ -2875,41 +2847,12 @@ mod tests {
         ];
 
         for [subquery, expected_granularity] in supported_granularities.iter() {
+            let sql = format!("SELECT COUNT(*), {} AS __timestamp FROM KibanaSampleDataEcommerce GROUP BY __timestamp", subquery);
             let query = convert_simple_select(
-                format!("SELECT COUNT(*), {} AS __timestamp FROM KibanaSampleDataEcommerce GROUP BY __timestamp", subquery)
+                sql.clone()
             );
 
-            assert_eq!(
-                query,
-                CompiledQuery {
-                    request: V1LoadRequestQuery {
-                        measures: Some(vec!["KibanaSampleDataEcommerce.count".to_string(),]),
-                        dimensions: Some(vec![]),
-                        segments: Some(vec![]),
-                        time_dimensions: Some(vec![V1LoadRequestQueryTimeDimension {
-                            dimension: "KibanaSampleDataEcommerce.order_date".to_string(),
-                            granularity: Some(expected_granularity.to_string()),
-                            date_range: None,
-                        }]),
-                        order: None,
-                        limit: None,
-                        offset: None,
-                        filters: None
-                    },
-                    meta: vec![
-                        CompiledQueryFieldMeta {
-                            column_from: "KibanaSampleDataEcommerce.count".to_string(),
-                            column_to: "count".to_string(),
-                            column_type: ColumnType::MYSQL_TYPE_LONGLONG,
-                        },
-                        CompiledQueryFieldMeta {
-                            column_from: "KibanaSampleDataEcommerce.order_date".to_string(),
-                            column_to: "__timestamp".to_string(),
-                            column_type: ColumnType::MYSQL_TYPE_STRING,
-                        }
-                    ]
-                }
-            )
+            assert_json_snapshot!(query);
         }
     }
 
@@ -3820,23 +3763,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_information_schema_columns() -> Result<(), CubeError> {
-        assert_eq!(
-            execute_query("SELECT * FROM information_schema.columns WHERE TABLE_SCHEMA = 'db'".to_string()).await?,
-            "+---------------+--------------+---------------------------+--------------------+------------------+----------------+-------------+-----------+--------------------------+------------------------+--------------+-------------------+--------------------+------------+-------+----------------+-----------------------+--------+\n\
-            | TABLE_CATALOG | TABLE_SCHEMA | TABLE_NAME                | COLUMN_NAME        | ORDINAL_POSITION | COLUMN_DEFAULT | IS_NULLABLE | DATA_TYPE | CHARACTER_MAXIMUM_LENGTH | CHARACTER_OCTET_LENGTH | COLUMN_TYPE  | NUMERIC_PRECISION | DATETIME_PRECISION | COLUMN_KEY | EXTRA | COLUMN_COMMENT | GENERATION_EXPRESSION | SRS_ID |\n\
-            +---------------+--------------+---------------------------+--------------------+------------------+----------------+-------------+-----------+--------------------------+------------------------+--------------+-------------------+--------------------+------------+-------+----------------+-----------------------+--------+\n\
-            | def           | db           | KibanaSampleDataEcommerce | count              | 0                |                | NO          | int       | NULL                     | NULL                   | int          | NULL              | NULL               |            |       |                |                       |        |\n\
-            | def           | db           | KibanaSampleDataEcommerce | maxPrice           | 0                |                | NO          | int       | NULL                     | NULL                   | int          | NULL              | NULL               |            |       |                |                       |        |\n\
-            | def           | db           | KibanaSampleDataEcommerce | minPrice           | 0                |                | NO          | int       | NULL                     | NULL                   | int          | NULL              | NULL               |            |       |                |                       |        |\n\
-            | def           | db           | KibanaSampleDataEcommerce | avgPrice           | 0                |                | NO          | int       | NULL                     | NULL                   | int          | NULL              | NULL               |            |       |                |                       |        |\n\
-            | def           | db           | KibanaSampleDataEcommerce | order_date         | 0                |                | YES         | datetime  | NULL                     | NULL                   | datetime     | NULL              | NULL               |            |       |                |                       |        |\n\
-            | def           | db           | KibanaSampleDataEcommerce | customer_gender    | 0                |                | YES         | varchar   | NULL                     | NULL                   | varchar(255) | NULL              | NULL               |            |       |                |                       |        |\n\
-            | def           | db           | KibanaSampleDataEcommerce | taxful_total_price | 0                |                | YES         | varchar   | NULL                     | NULL                   | varchar(255) | NULL              | NULL               |            |       |                |                       |        |\n\
-            | def           | db           | KibanaSampleDataEcommerce | is_male            | 0                |                | NO          | boolean   | NULL                     | NULL                   | boolean      | NULL              | NULL               |            |       |                |                       |        |\n\
-            | def           | db           | KibanaSampleDataEcommerce | is_female          | 0                |                | NO          | boolean   | NULL                     | NULL                   | boolean      | NULL              | NULL               |            |       |                |                       |        |\n\
-            | def           | db           | Logs                      | agentCount         | 0                |                | NO          | int       | NULL                     | NULL                   | int          | NULL              | NULL               |            |       |                |                       |        |\n\
-            | def           | db           | Logs                      | agentCountApprox   | 0                |                | NO          | int       | NULL                     | NULL                   | int          | NULL              | NULL               |            |       |                |                       |        |\n\
-            +---------------+--------------+---------------------------+--------------------+------------------+----------------+-------------+-----------+--------------------------+------------------------+--------------+-------------------+--------------------+------------+-------+----------------+-----------------------+--------+"
+        insta::assert_snapshot!(
+            execute_query("SELECT * FROM information_schema.columns WHERE TABLE_SCHEMA = 'db'".to_string()).await?
         );
 
         Ok(())
@@ -3844,17 +3772,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_information_schema_schemata() -> Result<(), CubeError> {
-        assert_eq!(
-            execute_query("SELECT * FROM information_schema.schemata".to_string()).await?,
-            "+--------------+--------------------+----------------------------+------------------------+----------+--------------------+\n\
-            | CATALOG_NAME | SCHEMA_NAME        | DEFAULT_CHARACTER_SET_NAME | DEFAULT_COLLATION_NAME | SQL_PATH | DEFAULT_ENCRYPTION |\n\
-            +--------------+--------------------+----------------------------+------------------------+----------+--------------------+\n\
-            | def          | information_schema | utf8                       | utf8_general_ci        | NULL     | NO                 |\n\
-            | def          | mysql              | utf8mb4                    | utf8mb4_0900_ai_ci     | NULL     | NO                 |\n\
-            | def          | performance_schema | utf8mb4                    | utf8mb4_0900_ai_ci     | NULL     | NO                 |\n\
-            | def          | sys                | utf8mb4                    | utf8mb4_0900_ai_ci     | NULL     | NO                 |\n\
-            | def          | test               | utf8mb4                    | utf8mb4_0900_ai_ci     | NULL     | NO                 |\n\
-            +--------------+--------------------+----------------------------+------------------------+----------+--------------------+"
+        insta::assert_snapshot!(
+            execute_query("SELECT * FROM information_schema.schemata".to_string()).await?
         );
 
         Ok(())

@@ -1,0 +1,33 @@
+---
+source: cubesql/src/compile/mod.rs
+assertion_line: 2819
+expression: query
+
+---
+{
+  "request": {
+    "measures": [
+      "KibanaSampleDataEcommerce.count"
+    ],
+    "dimensions": [],
+    "segments": [],
+    "timeDimensions": [
+      {
+        "dimension": "KibanaSampleDataEcommerce.order_date",
+        "granularity": "second"
+      }
+    ]
+  },
+  "meta": [
+    {
+      "column_from": "KibanaSampleDataEcommerce.count",
+      "column_to": "count",
+      "column_type": "MYSQL_TYPE_LONGLONG"
+    },
+    {
+      "column_from": "KibanaSampleDataEcommerce.order_date",
+      "column_to": "__timestamp",
+      "column_type": "MYSQL_TYPE_STRING"
+    }
+  ]
+}
