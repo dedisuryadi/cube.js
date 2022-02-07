@@ -3,8 +3,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::mysql::ConnectionState;
+use crate::transport::TransportService;
 use crate::CubeError;
-use crate::{transport::TransportService};
 
 use super::{convert_sql_to_cube_query, CompilationResult, MetaContext, QueryPlan};
 

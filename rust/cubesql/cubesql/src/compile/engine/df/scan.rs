@@ -9,9 +9,7 @@ use async_trait::async_trait;
 use cubeclient::models::{V1LoadRequestQuery, V1LoadResult};
 use datafusion::{
     arrow::{
-        array::{
-            ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder,
-        },
+        array::{ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder},
         datatypes::{DataType, SchemaRef},
         error::Result as ArrowResult,
         record_batch::RecordBatch,
@@ -149,18 +147,19 @@ impl CubeScanExecutionPlan {
                     let mut builder = StringBuilder::new(100);
 
                     for row in response.data.iter() {
-                        let value = row.as_object().unwrap().get(schema_field.name());
+                        let value = row.as_object().unwrap().get(schema_field.name()).ok_or(
+                            DataFusionError::Internal(
+                                "Unexpected response from Cube.js, rows are not objects"
+                                    .to_string(),
+                            ),
+                        )?;
                         match &value {
-                            Some(serde_json::Value::Null) => builder.append_null()?,
-                            Some(serde_json::Value::String(v)) => {
-                                builder.append_value(v.clone())?
-                            }
-                            Some(serde_json::Value::Bool(v)) => {
+                            serde_json::Value::Null => builder.append_null()?,
+                            serde_json::Value::String(v) => builder.append_value(v.clone())?,
+                            serde_json::Value::Bool(v) => {
                                 builder.append_value(if *v { "true" } else { "false" })?
                             }
-                            Some(serde_json::Value::Number(v)) => {
-                                builder.append_value(v.to_string())?
-                            }
+                            serde_json::Value::Number(v) => builder.append_value(v.to_string())?,
                             v => {
                                 error!(
                                     "Unable to map value {:?} to DataType::Utf8 (returning null)",
@@ -169,7 +168,6 @@ impl CubeScanExecutionPlan {
 
                                 builder.append_null()?
                             }
-                            None => builder.append_null()?,
                         };
                     }
 
@@ -179,14 +177,19 @@ impl CubeScanExecutionPlan {
                     let mut builder = Int64Builder::new(100);
 
                     for row in response.data.iter() {
-                        let value = row.as_object().unwrap().get(schema_field.name());
+                        let value = row.as_object().unwrap().get(schema_field.name()).ok_or(
+                            DataFusionError::Internal(
+                                "Unexpected response from Cube.js, rows are not objects"
+                                    .to_string(),
+                            ),
+                        )?;
                         match &value {
-                            Some(serde_json::Value::Null) => builder.append_null()?,
-                            Some(serde_json::Value::Number(number)) => match number.as_i64() {
+                            serde_json::Value::Null => builder.append_null()?,
+                            serde_json::Value::Number(number) => match number.as_i64() {
                                 Some(v) => builder.append_value(v)?,
                                 None => builder.append_null()?,
                             },
-                            Some(serde_json::Value::String(s)) => match s.parse::<i64>() {
+                            serde_json::Value::String(s) => match s.parse::<i64>() {
                                 Ok(v) => builder.append_value(v)?,
                                 Err(error) => {
                                     warn!("Unable to parse value as i64: {}", error.to_string());
@@ -194,7 +197,7 @@ impl CubeScanExecutionPlan {
                                     builder.append_null()?
                                 }
                             },
-                            Some(v) => {
+                            v => {
                                 error!(
                                     "Unable to map value {:?} to DataType::Int64 (returning null)",
                                     v
@@ -202,7 +205,6 @@ impl CubeScanExecutionPlan {
 
                                 builder.append_null()?
                             }
-                            None => builder.append_null()?,
                         };
                     }
 
@@ -212,14 +214,19 @@ impl CubeScanExecutionPlan {
                     let mut builder = Float64Builder::new(100);
 
                     for row in response.data.iter() {
-                        let value = row.as_object().unwrap().get(schema_field.name());
+                        let value = row.as_object().unwrap().get(schema_field.name()).ok_or(
+                            DataFusionError::Internal(
+                                "Unexpected response from Cube.js, rows are not objects"
+                                    .to_string(),
+                            ),
+                        )?;
                         match &value {
-                            Some(serde_json::Value::Null) => builder.append_null()?,
-                            Some(serde_json::Value::Number(number)) => match number.as_f64() {
+                            serde_json::Value::Null => builder.append_null()?,
+                            serde_json::Value::Number(number) => match number.as_f64() {
                                 Some(v) => builder.append_value(v)?,
                                 None => builder.append_null()?,
                             },
-                            Some(serde_json::Value::String(s)) => match s.parse::<f64>() {
+                            serde_json::Value::String(s) => match s.parse::<f64>() {
                                 Ok(v) => builder.append_value(v)?,
                                 Err(error) => {
                                     warn!("Unable to parse value as f64: {}", error.to_string());
@@ -227,7 +234,7 @@ impl CubeScanExecutionPlan {
                                     builder.append_null()?
                                 }
                             },
-                            Some(v) => {
+                            v => {
                                 error!(
                                     "Unable to map value {:?} to DataType::Float64 (returning null)",
                                     v
@@ -235,7 +242,6 @@ impl CubeScanExecutionPlan {
 
                                 builder.append_null()?
                             }
-                            None => builder.append_null()?,
                         };
                     }
 
@@ -245,11 +251,16 @@ impl CubeScanExecutionPlan {
                     let mut builder = BooleanBuilder::new(100);
 
                     for row in response.data.iter() {
-                        let value = row.as_object().unwrap().get(schema_field.name());
+                        let value = row.as_object().unwrap().get(schema_field.name()).ok_or(
+                            DataFusionError::Internal(
+                                "Unexpected response from Cube.js, rows are not objects"
+                                    .to_string(),
+                            ),
+                        )?;
                         match &value {
-                            Some(serde_json::Value::Null) => builder.append_null()?,
-                            Some(serde_json::Value::Bool(v)) => builder.append_value(*v)?,
-                            Some(v) => {
+                            serde_json::Value::Null => builder.append_null()?,
+                            serde_json::Value::Bool(v) => builder.append_value(*v)?,
+                            v => {
                                 error!(
                                     "Unable to map value {:?} to DataType::Boolean (returning null)",
                                     v
@@ -257,7 +268,6 @@ impl CubeScanExecutionPlan {
 
                                 builder.append_null()?
                             }
-                            None => builder.append_null()?,
                         };
                     }
 
