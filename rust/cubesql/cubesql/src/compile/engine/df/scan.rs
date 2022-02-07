@@ -120,21 +120,13 @@ impl ExtensionPlanner for CubeScanExtensionPlanner {
     }
 }
 
+#[derive(Debug)]
 struct CubeScanExecutionPlan {
     schema: SchemaRef,
     request: V1LoadRequestQuery,
     auth_context: Arc<AuthContext>,
     // Shared references
     transport: Arc<dyn TransportService>,
-}
-
-impl std::fmt::Debug for CubeScanExecutionPlan {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CubeScanExecutionPlan")
-            .field("schema", &self.schema)
-            // .field("transport", &self.transport)
-            .finish()
-    }
 }
 
 impl CubeScanExecutionPlan {
