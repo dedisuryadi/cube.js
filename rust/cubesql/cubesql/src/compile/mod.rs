@@ -4,7 +4,7 @@ use std::{backtrace::Backtrace, fmt};
 use chrono::{prelude::*, Duration};
 
 use datafusion::arrow::datatypes::DataType;
-use datafusion::logical_plan::{DFField, DFSchema, DFSchemaRef};
+use datafusion::logical_plan::{DFField, DFSchema, DFSchemaRef, Expr};
 use datafusion::sql::parser::Statement as DFStatement;
 use datafusion::sql::planner::SqlToRel;
 use datafusion::variable::VarType;
@@ -1490,13 +1490,24 @@ impl QueryPlanner {
             }
 
             let query = builder.build();
-            let logical_plan = LogicalPlan::Extension {
+            let schema = query.meta_as_df_schema();
+
+            let projection_expr = query.meta_as_df_projection_expr();
+            let projection_schema = schema.clone();
+
+            let scan_node = LogicalPlan::Extension {
                 node: Arc::new(CubeScanNode::new(
-                    query.meta_as_df_schema(),
+                    schema,
                     query.request,
-                    // @todo Fix after split!
+                    // @todo Remove after split!
                     Arc::new(self.state.auth_context().unwrap()),
                 )),
+            };
+            let logical_plan = LogicalPlan::Projection {
+                expr: projection_expr,
+                input: Arc::new(scan_node),
+                schema: projection_schema,
+                alias: None,
             };
 
             let ctx = self.create_execution_ctx();
@@ -1968,6 +1979,22 @@ pub struct CompiledQuery {
 }
 
 impl CompiledQuery {
+    pub fn meta_as_df_projection_expr(&self) -> Vec<Expr> {
+        let mut projection = Vec::new();
+
+        for meta_field in self.meta.iter() {
+            projection.push(Expr::Alias(
+                Box::new(Expr::Column(Column {
+                    relation: None,
+                    name: meta_field.column_from.clone(),
+                })),
+                meta_field.column_to.clone(),
+            ));
+        }
+
+        projection
+    }
+
     pub fn meta_as_df_schema(&self) -> Arc<DFSchema> {
         let mut fields: Vec<DFField> = Vec::new();
 
