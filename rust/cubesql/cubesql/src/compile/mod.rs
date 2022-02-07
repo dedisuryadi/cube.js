@@ -1493,7 +1493,7 @@ impl QueryPlanner {
             let schema = query.meta_as_df_schema();
 
             let projection_expr = query.meta_as_df_projection_expr();
-            let projection_schema = schema.clone();
+            let projection_schema = query.meta_as_df_projection_schema();
 
             let scan_node = LogicalPlan::Extension {
                 node: Arc::new(CubeScanNode::new(
@@ -1995,21 +1995,51 @@ impl CompiledQuery {
         projection
     }
 
-    pub fn meta_as_df_schema(&self) -> Arc<DFSchema> {
+    pub fn meta_as_df_projection_schema(&self) -> Arc<DFSchema> {
         let mut fields: Vec<DFField> = Vec::new();
 
         for meta_field in self.meta.iter() {
             fields.push(DFField::new(
                 None,
-                meta_field.column_from.as_str(),
+                meta_field.column_to.as_str(),
                 match meta_field.column_type {
                     ColumnType::MYSQL_TYPE_LONGLONG => DataType::Int64,
                     ColumnType::MYSQL_TYPE_STRING => DataType::Utf8,
+                    ColumnType::MYSQL_TYPE_DOUBLE => DataType::Float64,
+                    ColumnType::MYSQL_TYPE_TINY => DataType::Boolean,
                     _ => panic!("Unimplemented support for {:?}", meta_field.column_type),
                 },
                 false,
             ));
         }
+
+        DFSchemaRef::new(DFSchema::new(fields).unwrap())
+    }
+
+    pub fn meta_as_df_schema(&self) -> Arc<DFSchema> {
+        let mut fields: Vec<DFField> = Vec::new();
+
+        for meta_field in self.meta.iter() {
+            let exists = fields
+                .iter()
+                .any(|field| field.name() == &meta_field.column_from);
+            if !exists {
+                fields.push(DFField::new(
+                    None,
+                    meta_field.column_from.as_str(),
+                    match meta_field.column_type {
+                        ColumnType::MYSQL_TYPE_LONGLONG => DataType::Int64,
+                        ColumnType::MYSQL_TYPE_STRING => DataType::Utf8,
+                        ColumnType::MYSQL_TYPE_DOUBLE => DataType::Float64,
+                        ColumnType::MYSQL_TYPE_TINY => DataType::Boolean,
+                        _ => panic!("Unimplemented support for {:?}", meta_field.column_type),
+                    },
+                    false,
+                ));
+            }
+        }
+
+        println!("fields {:?}", fields);
 
         DFSchemaRef::new(DFSchema::new(fields).unwrap())
     }
