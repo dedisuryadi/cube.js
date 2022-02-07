@@ -2039,8 +2039,9 @@ pub fn convert_sql_to_cube_query(
 
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
     use cubeclient::models::{
-        V1CubeMeta, V1CubeMetaDimension, V1CubeMetaMeasure, V1CubeMetaSegment,
+        V1CubeMeta, V1CubeMetaDimension, V1CubeMetaMeasure, V1CubeMetaSegment, V1LoadResponse,
     };
 
     use crate::mysql::{dataframe::batch_to_dataframe, AuthContext, ConnectionProperties};
@@ -2147,9 +2148,37 @@ mod tests {
         ))
     }
 
+    fn get_test_transport() -> Arc<dyn TransportService> {
+        #[derive(Debug)]
+        struct TestConnectionTransport {}
+
+        #[async_trait]
+        impl TransportService for TestConnectionTransport {
+            // Load meta information about cubes
+            async fn meta(&self, ctx: Arc<AuthContext>) -> Result<MetaContext, CubeError> {
+                panic!("It's a fake transport");
+            }
+
+            // Execute load query
+            async fn load(
+                &self,
+                query: V1LoadRequestQuery,
+                ctx: Arc<AuthContext>,
+            ) -> Result<V1LoadResponse, CubeError> {
+                panic!("It's a fake transport");
+            }
+        }
+
+        Arc::new(TestConnectionTransport {})
+    }
+
     fn convert_simple_select(query: String) -> String {
-        let query =
-            convert_sql_to_cube_query(&query, get_test_tenant_ctx(), get_test_connection_state());
+        let query = convert_sql_to_cube_query(
+            &query,
+            get_test_tenant_ctx(),
+            get_test_connection_state(),
+            get_test_transport(),
+        );
         match query.unwrap() {
             QueryPlan::DataFushionSelect(_, plan, _) => plan.display().to_string(),
             _ => panic!("Must return DataFushionSelect instead of DF plan"),
@@ -2765,6 +2794,7 @@ mod tests {
                 &input_query,
                 get_test_tenant_ctx(),
                 get_test_connection_state(),
+                get_test_transport(),
             );
 
             match &query {
@@ -3386,6 +3416,7 @@ mod tests {
                 ),
                 get_test_tenant_ctx(),
                 get_test_connection_state(),
+                get_test_transport(),
             );
 
             match &query {
@@ -3751,8 +3782,12 @@ mod tests {
     }
 
     async fn execute_query(query: String) -> Result<String, CubeError> {
-        let query =
-            convert_sql_to_cube_query(&query, get_test_tenant_ctx(), get_test_connection_state());
+        let query = convert_sql_to_cube_query(
+            &query,
+            get_test_tenant_ctx(),
+            get_test_connection_state(),
+            get_test_transport(),
+        );
         match query.unwrap() {
             QueryPlan::DataFushionSelect(_, plan, ctx) => {
                 let df = DataFrameImpl::new(ctx.state, &plan);
