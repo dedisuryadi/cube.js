@@ -10,9 +10,9 @@ use cubeclient::models::{V1LoadRequestQuery, V1LoadResult};
 use datafusion::{
     arrow::{
         array::{
-            ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, UInt64Builder,
+            ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder,
         },
-        datatypes::{DataType, Schema, SchemaRef},
+        datatypes::{DataType, SchemaRef},
         error::Result as ArrowResult,
         record_batch::RecordBatch,
     },

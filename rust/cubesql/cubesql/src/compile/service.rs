@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use crate::mysql::ConnectionState;
 use crate::CubeError;
-use crate::{mysql::AuthContext, transport::TransportService};
+use crate::{transport::TransportService};
 
 use super::{convert_sql_to_cube_query, CompilationResult, MetaContext, QueryPlan};
 
