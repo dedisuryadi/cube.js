@@ -9,9 +9,12 @@ use async_trait::async_trait;
 use cubeclient::models::{V1LoadRequestQuery, V1LoadResult};
 use datafusion::{
     arrow::{
-        datatypes::{Schema, SchemaRef, DataType},
+        array::{
+            ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, UInt64Builder,
+        },
+        datatypes::{DataType, Schema, SchemaRef},
         error::Result as ArrowResult,
-        record_batch::RecordBatch, array::{StringBuilder, UInt64Builder, ArrayRef, Int64Builder, Float64Builder, BooleanBuilder},
+        record_batch::RecordBatch,
     },
     error::{DataFusionError, Result},
     execution::context::ExecutionContextState,
@@ -107,9 +110,7 @@ impl ExtensionPlanner for CubeScanExtensionPlanner {
 
                 // figure out input name
                 Some(Arc::new(CubeScanExecutionPlan {
-                    schema: SchemaRef::new(
-                        scan_node.schema().as_ref().into()
-                    ),
+                    schema: SchemaRef::new(scan_node.schema().as_ref().into()),
                     transport: self.transport.clone(),
                     request: scan_node.request.clone(),
                     auth_context: scan_node.auth_context.clone(),
@@ -151,18 +152,24 @@ impl CubeScanExecutionPlan {
                         let value = row.as_object().unwrap().get(schema_field.name());
                         match &value {
                             Some(serde_json::Value::Null) => builder.append_null()?,
-                            Some(serde_json::Value::String(v)) => builder.append_value(v.clone())?,
-                            Some(serde_json::Value::Bool(v)) => builder.append_value(if *v { "true" } else { "false" })?,
-                            Some(serde_json::Value::Number(v)) => builder.append_value(v.to_string())?,
+                            Some(serde_json::Value::String(v)) => {
+                                builder.append_value(v.clone())?
+                            }
+                            Some(serde_json::Value::Bool(v)) => {
+                                builder.append_value(if *v { "true" } else { "false" })?
+                            }
+                            Some(serde_json::Value::Number(v)) => {
+                                builder.append_value(v.to_string())?
+                            }
                             v => {
                                 error!(
                                     "Unable to map value {:?} to DataType::Utf8 (returning null)",
                                     v
                                 );
-    
+
                                 builder.append_null()?
-                            },
-                            None => builder.append_null()?
+                            }
+                            None => builder.append_null()?,
                         };
                     }
 
@@ -183,7 +190,7 @@ impl CubeScanExecutionPlan {
                                 Ok(v) => builder.append_value(v)?,
                                 Err(error) => {
                                     warn!("Unable to parse value as i64: {}", error.to_string());
-    
+
                                     builder.append_null()?
                                 }
                             },
@@ -192,15 +199,15 @@ impl CubeScanExecutionPlan {
                                     "Unable to map value {:?} to DataType::Int64 (returning null)",
                                     v
                                 );
-    
+
                                 builder.append_null()?
-                            },
+                            }
                             None => builder.append_null()?,
                         };
                     }
 
                     Arc::new(builder.finish()) as ArrayRef
-                },
+                }
                 DataType::Float64 => {
                     let mut builder = Float64Builder::new(100);
 
@@ -216,7 +223,7 @@ impl CubeScanExecutionPlan {
                                 Ok(v) => builder.append_value(v)?,
                                 Err(error) => {
                                     warn!("Unable to parse value as f64: {}", error.to_string());
-    
+
                                     builder.append_null()?
                                 }
                             },
@@ -225,7 +232,7 @@ impl CubeScanExecutionPlan {
                                     "Unable to map value {:?} to DataType::Float64 (returning null)",
                                     v
                                 );
-    
+
                                 builder.append_null()?
                             }
                             None => builder.append_null()?,
@@ -233,7 +240,7 @@ impl CubeScanExecutionPlan {
                     }
 
                     Arc::new(builder.finish()) as ArrayRef
-                },
+                }
                 DataType::Boolean => {
                     let mut builder = BooleanBuilder::new(100);
 
@@ -247,15 +254,15 @@ impl CubeScanExecutionPlan {
                                     "Unable to map value {:?} to DataType::Boolean (returning null)",
                                     v
                                 );
-    
+
                                 builder.append_null()?
-                            },
+                            }
                             None => builder.append_null()?,
                         };
                     }
 
                     Arc::new(builder.finish()) as ArrayRef
-                },
+                }
                 _ => unimplemented!(),
             };
 
@@ -362,9 +369,7 @@ impl Stream for CubeScanMemoryStream {
             println!("scan.batch {:?}", batch);
             println!("scan.schema {:?}", self.schema);
 
-            Some(Ok(
-                batch.clone()
-            ))
+            Some(Ok(batch.clone()))
         } else {
             None
         })

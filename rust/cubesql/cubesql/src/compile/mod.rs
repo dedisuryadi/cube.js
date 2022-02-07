@@ -1554,15 +1554,11 @@ impl QueryPlanner {
                 filter,
                 db_name,
             } => self.show_tables_to_plan(*extended, *full, &filter, &db_name),
-            ast::Statement::ShowCollation { filter } => {
-                self.show_collation_to_plan(&filter)
-            }
+            ast::Statement::ShowCollation { filter } => self.show_collation_to_plan(&filter),
             ast::Statement::ExplainTable { table_name, .. } => {
                 self.explain_table_to_plan(&table_name)
             }
-            ast::Statement::Explain { statement, .. } => {
-                self.explain_to_plan(&statement)
-            }
+            ast::Statement::Explain { statement, .. } => self.explain_to_plan(&statement),
             _ => Err(CompilationError::Unsupported(format!(
                 "Unsupported query type: {}",
                 stmt.to_string()
@@ -1869,7 +1865,7 @@ WHERE `TABLE_SCHEMA` = '{}'",
 
     fn explain_table_to_plan(
         &self,
-        table_name: &ast::ObjectName
+        table_name: &ast::ObjectName,
     ) -> Result<QueryPlan, CompilationError> {
         // EXPLAIN <table> matches the SHOW COLUMNS output exactly, reuse the plan
         self.show_columns_to_plan(false, false, &None, table_name)
@@ -1877,10 +1873,14 @@ WHERE `TABLE_SCHEMA` = '{}'",
 
     fn explain_to_plan(
         &self,
-        statement: &Box<ast::Statement>
+        statement: &Box<ast::Statement>,
     ) -> Result<QueryPlan, CompilationError> {
-        let plan =
-            convert_statement_to_cube_query(&statement, self.meta.clone(), self.state.clone(), self.transport.clone())?;
+        let plan = convert_statement_to_cube_query(
+            &statement,
+            self.meta.clone(),
+            self.state.clone(),
+            self.transport.clone(),
+        )?;
 
         return Ok(QueryPlan::MetaTabular(
             StatusFlags::empty(),
@@ -1972,18 +1972,16 @@ impl CompiledQuery {
         let mut fields: Vec<DFField> = Vec::new();
 
         for meta_field in self.meta.iter() {
-            fields.push(
-                DFField::new(
-                    None,
-                    meta_field.column_from.as_str(),
-                    match meta_field.column_type {
-                        ColumnType::MYSQL_TYPE_LONGLONG => DataType::Int64,
-                        ColumnType::MYSQL_TYPE_STRING => DataType::Utf8,
-                        _ => panic!("Unimplemented support for {:?}", meta_field.column_type),
-                    },
-                    false
-                )
-            );
+            fields.push(DFField::new(
+                None,
+                meta_field.column_from.as_str(),
+                match meta_field.column_type {
+                    ColumnType::MYSQL_TYPE_LONGLONG => DataType::Int64,
+                    ColumnType::MYSQL_TYPE_STRING => DataType::Utf8,
+                    _ => panic!("Unimplemented support for {:?}", meta_field.column_type),
+                },
+                false,
+            ));
         }
 
         DFSchemaRef::new(DFSchema::new(fields).unwrap())
