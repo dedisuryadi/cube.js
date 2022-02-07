@@ -15,7 +15,6 @@ use log::trace;
 
 use msql_srv::*;
 
-
 use tokio::net::TcpListener;
 use tokio::sync::{watch, RwLock};
 

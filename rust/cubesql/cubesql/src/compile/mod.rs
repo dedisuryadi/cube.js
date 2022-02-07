@@ -1333,8 +1333,16 @@ struct QueryPlanner {
 }
 
 impl QueryPlanner {
-    pub fn new(state: Arc<ConnectionState>, meta: Arc<MetaContext>, transport: Arc<dyn TransportService>) -> Self {
-        Self { state, transport, meta }
+    pub fn new(
+        state: Arc<ConnectionState>,
+        meta: Arc<MetaContext>,
+        transport: Arc<dyn TransportService>,
+    ) -> Self {
+        Self {
+            state,
+            transport,
+            meta,
+        }
     }
 
     /// Common case for both planners: meta & olap
@@ -1343,7 +1351,7 @@ impl QueryPlanner {
     pub fn select_to_plan(
         &self,
         stmt: &ast::Statement,
-        q: &Box<ast::Query>
+        q: &Box<ast::Query>,
     ) -> CompilationResult<QueryPlan> {
         let select = match &q.body {
             sqlparser::ast::SetExpr::Select(select) => select,
@@ -1484,10 +1492,7 @@ impl QueryPlanner {
             let query = builder.build();
             let logical_plan = LogicalPlan::Extension {
                 node: Arc::new(CubeScanNode::new(
-                    DFSchemaRef::new(
-                        DFSchema::new(vec![DFField::new(None, "a", DataType::Int32, false)])
-                            .unwrap(),
-                    ),
+                    query.meta_as_df_schema(),
                     query.request,
                     // @todo Fix after split!
                     Arc::new(self.state.auth_context().unwrap()),
@@ -1508,10 +1513,7 @@ impl QueryPlanner {
         }
     }
 
-    pub fn plan(
-        &self,
-        stmt: &ast::Statement
-    ) -> CompilationResult<QueryPlan> {
+    pub fn plan(&self, stmt: &ast::Statement) -> CompilationResult<QueryPlan> {
         match stmt {
             ast::Statement::Query(q) => self.select_to_plan(stmt, q),
             ast::Statement::SetTransaction { .. } => Ok(QueryPlan::MetaTabular(
@@ -1535,12 +1537,8 @@ impl QueryPlanner {
             }
             ast::Statement::Kill { .. } => Ok(QueryPlan::MetaOk(StatusFlags::empty())),
             ast::Statement::SetVariable { .. } => Ok(QueryPlan::MetaOk(StatusFlags::empty())),
-            ast::Statement::ShowVariable { variable } => {
-                self.show_variable_to_plan(variable)
-            }
-            ast::Statement::ShowVariables { filter } => {
-                self.show_variables_to_plan(&filter)
-            }
+            ast::Statement::ShowVariable { variable } => self.show_variable_to_plan(variable),
+            ast::Statement::ShowVariables { filter } => self.show_variables_to_plan(&filter),
             ast::Statement::ShowCreate { obj_name, obj_type } => {
                 self.show_create_to_plan(&obj_name, &obj_type)
             }
@@ -1549,9 +1547,7 @@ impl QueryPlanner {
                 full,
                 filter,
                 table_name,
-            } => {
-                self.show_columns_to_plan(*extended, *full, &filter, &table_name)
-            }
+            } => self.show_columns_to_plan(*extended, *full, &filter, &table_name),
             ast::Statement::ShowTables {
                 extended,
                 full,
@@ -1574,10 +1570,7 @@ impl QueryPlanner {
         }
     }
 
-    fn show_variable_to_plan(
-        &self,
-        variable: &Vec<Ident>
-    ) -> CompilationResult<QueryPlan> {
+    fn show_variable_to_plan(&self, variable: &Vec<Ident>) -> CompilationResult<QueryPlan> {
         let name = ObjectName(variable.to_vec()).to_string();
         if name.eq_ignore_ascii_case("databases") || name.eq_ignore_ascii_case("schemas") {
             Ok(QueryPlan::MetaTabular(
@@ -1628,17 +1621,15 @@ impl QueryPlanner {
                 )),
             ))
         } else {
-            self.create_df_logical_plan(
-                ast::Statement::ShowVariable {
-                    variable: variable.clone(),
-                }
-            )
+            self.create_df_logical_plan(ast::Statement::ShowVariable {
+                variable: variable.clone(),
+            })
         }
     }
 
     fn show_variables_to_plan(
         &self,
-        filter: &Option<ast::ShowStatementFilter>
+        filter: &Option<ast::ShowStatementFilter>,
     ) -> Result<QueryPlan, CompilationError> {
         let filter = match filter {
             Some(stmt @ ast::ShowStatementFilter::Like(_)) => {
@@ -1732,7 +1723,7 @@ impl QueryPlanner {
         extended: bool,
         full: bool,
         filter: &Option<ast::ShowStatementFilter>,
-        table_name: &ast::ObjectName
+        table_name: &ast::ObjectName,
     ) -> Result<QueryPlan, CompilationError> {
         let extended = match extended {
             false => "".to_string(),
@@ -1765,10 +1756,7 @@ impl QueryPlanner {
         };
         let db_name = match object_name.pop() {
             Some(db_name) => escape_single_quote_string(&db_name.value).to_string(),
-            None => self.state
-                .database()
-                .unwrap_or("db".to_string())
-                .clone(),
+            None => self.state.database().unwrap_or("db".to_string()).clone(),
         };
 
         let filter = match filter {
@@ -1802,7 +1790,7 @@ impl QueryPlanner {
         _extended: bool,
         full: bool,
         filter: &Option<ast::ShowStatementFilter>,
-        db_name: &Option<ast::Ident>
+        db_name: &Option<ast::Ident>,
     ) -> Result<QueryPlan, CompilationError> {
         let db_name = match db_name {
             Some(db_name) => db_name.clone(),
@@ -1852,7 +1840,7 @@ WHERE `TABLE_SCHEMA` = '{}'",
 
     fn show_collation_to_plan(
         &self,
-        filter: &Option<ast::ShowStatementFilter>
+        filter: &Option<ast::ShowStatementFilter>,
     ) -> Result<QueryPlan, CompilationError> {
         let filter = match filter {
             Some(stmt @ ast::ShowStatementFilter::Like(_)) => {
@@ -1920,14 +1908,8 @@ WHERE `TABLE_SCHEMA` = '{}'",
         ctx.register_variable(VarType::System, Arc::new(variable_provider));
 
         ctx.register_udf(create_version_udf());
-        ctx.register_udf(create_db_udf(
-            "database".to_string(),
-            self.state.clone(),
-        ));
-        ctx.register_udf(create_db_udf(
-            "schema".to_string(),
-            self.state.clone(),
-        ));
+        ctx.register_udf(create_db_udf("database".to_string(), self.state.clone()));
+        ctx.register_udf(create_db_udf("schema".to_string(), self.state.clone()));
         ctx.register_udf(create_connection_id_udf(self.state.clone()));
         ctx.register_udf(create_user_udf(self.state.clone()));
         ctx.register_udf(create_current_user_udf(self.state.clone()));
@@ -1944,10 +1926,7 @@ WHERE `TABLE_SCHEMA` = '{}'",
         ctx
     }
 
-    fn create_df_logical_plan(
-        &self,
-        stmt: ast::Statement
-    ) -> CompilationResult<QueryPlan> {
+    fn create_df_logical_plan(&self, stmt: ast::Statement) -> CompilationResult<QueryPlan> {
         let ctx = self.create_execution_ctx();
 
         let state = ctx.state.lock().unwrap().clone();
@@ -1986,6 +1965,29 @@ pub fn convert_statement_to_cube_query(
 pub struct CompiledQuery {
     pub request: V1LoadRequestQuery,
     pub meta: Vec<CompiledQueryFieldMeta>,
+}
+
+impl CompiledQuery {
+    pub fn meta_as_df_schema(&self) -> Arc<DFSchema> {
+        let mut fields: Vec<DFField> = Vec::new();
+
+        for meta_field in self.meta.iter() {
+            fields.push(
+                DFField::new(
+                    None,
+                    meta_field.column_from.as_str(),
+                    match meta_field.column_type {
+                        ColumnType::MYSQL_TYPE_LONGLONG => DataType::Int64,
+                        ColumnType::MYSQL_TYPE_STRING => DataType::Utf8,
+                        _ => panic!("Unimplemented support for {:?}", meta_field.column_type),
+                    },
+                    false
+                )
+            );
+        }
+
+        DFSchemaRef::new(DFSchema::new(fields).unwrap())
+    }
 }
 
 pub enum QueryPlan {
@@ -2148,11 +2150,8 @@ mod tests {
     }
 
     fn convert_simple_select(query: String) -> String {
-        let query = convert_sql_to_cube_query(
-            &query,
-            get_test_tenant_ctx(),
-            get_test_connection_state(),
-        );
+        let query =
+            convert_sql_to_cube_query(&query, get_test_tenant_ctx(), get_test_connection_state());
         match query.unwrap() {
             QueryPlan::DataFushionSelect(_, plan, _) => plan.display().to_string(),
             _ => panic!("Must return DataFushionSelect instead of DF plan"),

@@ -9,9 +9,9 @@ use async_trait::async_trait;
 use cubeclient::models::{V1LoadRequestQuery, V1LoadResult};
 use datafusion::{
     arrow::{
-        datatypes::{Schema, SchemaRef},
+        datatypes::{Schema, SchemaRef, DataType},
         error::Result as ArrowResult,
-        record_batch::RecordBatch,
+        record_batch::RecordBatch, array::{StringBuilder, UInt64Builder, ArrayRef, Int64Builder, Float64Builder, BooleanBuilder},
     },
     error::{DataFusionError, Result},
     execution::context::ExecutionContextState,
@@ -22,6 +22,7 @@ use datafusion::{
     },
 };
 use futures::Stream;
+use log::{error, warn};
 
 use crate::{mysql::AuthContext, transport::TransportService};
 
@@ -33,8 +34,16 @@ pub struct CubeScanNode {
 }
 
 impl CubeScanNode {
-    pub fn new(schema: DFSchemaRef, request: V1LoadRequestQuery, auth_context: Arc<AuthContext>) -> Self {
-        Self { schema, request, auth_context }
+    pub fn new(
+        schema: DFSchemaRef,
+        request: V1LoadRequestQuery,
+        auth_context: Arc<AuthContext>,
+    ) -> Self {
+        Self {
+            schema,
+            request,
+            auth_context,
+        }
     }
 }
 
@@ -98,7 +107,9 @@ impl ExtensionPlanner for CubeScanExtensionPlanner {
 
                 // figure out input name
                 Some(Arc::new(CubeScanExecutionPlan {
-                    schema: Arc::new(Schema::empty()),
+                    schema: SchemaRef::new(
+                        scan_node.schema().as_ref().into()
+                    ),
                     transport: self.transport.clone(),
                     request: scan_node.request.clone(),
                     auth_context: scan_node.auth_context.clone(),
@@ -124,6 +135,134 @@ impl std::fmt::Debug for CubeScanExecutionPlan {
             .field("schema", &self.schema)
             // .field("transport", &self.transport)
             .finish()
+    }
+}
+
+impl CubeScanExecutionPlan {
+    fn hydrate_response_to_record_batch(&self, response: V1LoadResult) -> Result<RecordBatch> {
+        let mut columns = vec![];
+
+        for schema_field in self.schema.fields() {
+            let column = match schema_field.data_type() {
+                DataType::Utf8 => {
+                    let mut builder = StringBuilder::new(100);
+
+                    for row in response.data.iter() {
+                        let value = row.as_object().unwrap().get(schema_field.name());
+                        match &value {
+                            Some(serde_json::Value::Null) => builder.append_null()?,
+                            Some(serde_json::Value::String(v)) => builder.append_value(v.clone())?,
+                            Some(serde_json::Value::Bool(v)) => builder.append_value(if *v { "true" } else { "false" })?,
+                            Some(serde_json::Value::Number(v)) => builder.append_value(v.to_string())?,
+                            v => {
+                                error!(
+                                    "Unable to map value {:?} to DataType::Utf8 (returning null)",
+                                    v
+                                );
+    
+                                builder.append_null()?
+                            },
+                            None => builder.append_null()?
+                        };
+                    }
+
+                    Arc::new(builder.finish()) as ArrayRef
+                }
+                DataType::Int64 => {
+                    let mut builder = Int64Builder::new(100);
+
+                    for row in response.data.iter() {
+                        let value = row.as_object().unwrap().get(schema_field.name());
+                        match &value {
+                            Some(serde_json::Value::Null) => builder.append_null()?,
+                            Some(serde_json::Value::Number(number)) => match number.as_i64() {
+                                Some(v) => builder.append_value(v)?,
+                                None => builder.append_null()?,
+                            },
+                            Some(serde_json::Value::String(s)) => match s.parse::<i64>() {
+                                Ok(v) => builder.append_value(v)?,
+                                Err(error) => {
+                                    warn!("Unable to parse value as i64: {}", error.to_string());
+    
+                                    builder.append_null()?
+                                }
+                            },
+                            Some(v) => {
+                                error!(
+                                    "Unable to map value {:?} to DataType::Int64 (returning null)",
+                                    v
+                                );
+    
+                                builder.append_null()?
+                            },
+                            None => builder.append_null()?,
+                        };
+                    }
+
+                    Arc::new(builder.finish()) as ArrayRef
+                },
+                DataType::Float64 => {
+                    let mut builder = Float64Builder::new(100);
+
+                    for row in response.data.iter() {
+                        let value = row.as_object().unwrap().get(schema_field.name());
+                        match &value {
+                            Some(serde_json::Value::Null) => builder.append_null()?,
+                            Some(serde_json::Value::Number(number)) => match number.as_f64() {
+                                Some(v) => builder.append_value(v)?,
+                                None => builder.append_null()?,
+                            },
+                            Some(serde_json::Value::String(s)) => match s.parse::<f64>() {
+                                Ok(v) => builder.append_value(v)?,
+                                Err(error) => {
+                                    warn!("Unable to parse value as f64: {}", error.to_string());
+    
+                                    builder.append_null()?
+                                }
+                            },
+                            Some(v) => {
+                                error!(
+                                    "Unable to map value {:?} to DataType::Float64 (returning null)",
+                                    v
+                                );
+    
+                                builder.append_null()?
+                            }
+                            None => builder.append_null()?,
+                        };
+                    }
+
+                    Arc::new(builder.finish()) as ArrayRef
+                },
+                DataType::Boolean => {
+                    let mut builder = BooleanBuilder::new(100);
+
+                    for row in response.data.iter() {
+                        let value = row.as_object().unwrap().get(schema_field.name());
+                        match &value {
+                            Some(serde_json::Value::Null) => builder.append_null()?,
+                            Some(serde_json::Value::Bool(v)) => builder.append_value(*v)?,
+                            Some(v) => {
+                                error!(
+                                    "Unable to map value {:?} to DataType::Boolean (returning null)",
+                                    v
+                                );
+    
+                                builder.append_null()?
+                            },
+                            None => builder.append_null()?,
+                        };
+                    }
+
+                    Arc::new(builder.finish()) as ArrayRef
+                },
+                _ => unimplemented!(),
+            };
+
+            columns.push(column);
+        }
+
+        Ok(RecordBatch::try_new(self.schema.clone(), columns)?)
     }
 }
 
@@ -159,10 +298,7 @@ impl ExecutionPlan for CubeScanExecutionPlan {
     async fn execute(&self, _partition: usize) -> Result<SendableRecordBatchStream> {
         let result = self
             .transport
-            .load(
-                self.request.clone(),
-                self.auth_context.clone(),
-            )
+            .load(self.request.clone(), self.auth_context.clone())
             .await;
 
         let response = result.map_err(|err| DataFusionError::Execution(err.to_string()))?;
@@ -174,7 +310,8 @@ impl ExecutionPlan for CubeScanExecutionPlan {
         };
 
         Ok(Box::pin(CubeScanMemoryStream::new(
-            result,
+            // @todo Pagination?)
+            vec![self.hydrate_response_to_record_batch(result)?],
             self.schema.clone(),
         )))
     }
@@ -193,8 +330,8 @@ impl ExecutionPlan for CubeScanExecutionPlan {
 }
 
 struct CubeScanMemoryStream {
-    //
-    result: V1LoadResult,
+    /// Vector of record batches
+    data: Vec<RecordBatch>,
     /// Schema representing the data
     schema: SchemaRef,
     /// Index into the data
@@ -202,9 +339,9 @@ struct CubeScanMemoryStream {
 }
 
 impl CubeScanMemoryStream {
-    pub fn new(result: V1LoadResult, schema: SchemaRef) -> Self {
+    pub fn new(data: Vec<RecordBatch>, schema: SchemaRef) -> Self {
         Self {
-            result,
+            data,
             schema,
             index: 0,
         }
@@ -218,30 +355,23 @@ impl Stream for CubeScanMemoryStream {
         mut self: std::pin::Pin<&mut Self>,
         _: &mut Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        Poll::Ready(if self.index < self.result.data.len() {
+        Poll::Ready(if self.index < self.data.len() {
             self.index += 1;
-            let batch = &self.result.data[self.index - 1];
+            let batch = &self.data[self.index - 1];
 
-            println!("batch {:?}", batch);
+            println!("scan.batch {:?}", batch);
+            println!("scan.schema {:?}", self.schema);
 
-            // // apply projection
-            // match &self.projection {
-            //     Some(columns) => Some(RecordBatch::try_new(
-            //         self.schema.clone(),
-            //         columns.iter().map(|i| batch.column(*i).clone()).collect(),
-            //     )),
-            //     None => Some(Ok(batch.clone())),
-            // }
-
-            None
+            Some(Ok(
+                batch.clone()
+            ))
         } else {
             None
         })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        // @todo implement?)
-        (0, None)
+        (self.data.len(), Some(self.data.len()))
     }
 }
 
