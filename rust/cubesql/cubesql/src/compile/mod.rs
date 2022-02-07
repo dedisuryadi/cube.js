@@ -3797,22 +3797,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_performance_schema_variables() -> Result<(), CubeError> {
-        assert_eq!(
-            execute_query("SELECT * FROM performance_schema.session_variables WHERE VARIABLE_NAME = 'max_allowed_packet'".to_string()).await?,
-            "+--------------------+----------------+\n\
-            | VARIABLE_NAME      | VARIABLE_VALUE |\n\
-            +--------------------+----------------+\n\
-            | max_allowed_packet | 67108864       |\n\
-            +--------------------+----------------+"
+        insta::assert_snapshot!(
+            execute_query("SELECT * FROM performance_schema.session_variables WHERE VARIABLE_NAME = 'max_allowed_packet'".to_string()).await?
         );
 
-        assert_eq!(
-            execute_query("SELECT * FROM performance_schema.global_variables WHERE VARIABLE_NAME = 'max_allowed_packet'".to_string()).await?,
-            "+--------------------+----------------+\n\
-            | VARIABLE_NAME      | VARIABLE_VALUE |\n\
-            +--------------------+----------------+\n\
-            | max_allowed_packet | 67108864       |\n\
-            +--------------------+----------------+"
+        insta::assert_snapshot!(
+            execute_query("SELECT * FROM performance_schema.global_variables WHERE VARIABLE_NAME = 'max_allowed_packet'".to_string()).await?
         );
 
         Ok(())
