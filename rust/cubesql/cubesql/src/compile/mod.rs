@@ -2155,15 +2155,15 @@ mod tests {
         #[async_trait]
         impl TransportService for TestConnectionTransport {
             // Load meta information about cubes
-            async fn meta(&self, ctx: Arc<AuthContext>) -> Result<MetaContext, CubeError> {
+            async fn meta(&self, _ctx: Arc<AuthContext>) -> Result<MetaContext, CubeError> {
                 panic!("It's a fake transport");
             }
 
             // Execute load query
             async fn load(
                 &self,
-                query: V1LoadRequestQuery,
-                ctx: Arc<AuthContext>,
+                _query: V1LoadRequestQuery,
+                _ctx: Arc<AuthContext>,
             ) -> Result<V1LoadResponse, CubeError> {
                 panic!("It's a fake transport");
             }
@@ -2476,7 +2476,7 @@ mod tests {
             ),
         ];
 
-        for (sql, expected_request) in supported_orders.iter() {
+        for (sql, _expected_request) in supported_orders.iter() {
             let query = convert_simple_select(sql.to_string());
 
             // assert_eq!(&query.request, expected_request)
@@ -2735,7 +2735,7 @@ mod tests {
             ),
         ];
 
-        for (input_query, expected_query) in variants.iter() {
+        for (input_query, _expected_query) in variants.iter() {
             let query = convert_simple_select(input_query.clone());
 
             // assert_eq!(&query, expected_query)
@@ -2843,7 +2843,7 @@ mod tests {
             ],
         ];
 
-        for [subquery, expected_granularity] in supported_granularities.iter() {
+        for [subquery, _expected_granularity] in supported_granularities.iter() {
             let query = convert_simple_select(
                 format!("SELECT COUNT(*), {} AS __timestamp FROM KibanaSampleDataEcommerce GROUP BY __timestamp", subquery)
             );
@@ -2909,7 +2909,7 @@ mod tests {
             ["DATE_ADD(DATE(order_date), INTERVAL (HOUR(`order_date`) * 60 * 60 + MINUTE(`order_date`) * 60 + SECOND(`order_date`)) SECOND)".to_string(), "second".to_string()],
         ];
 
-        for [subquery, expected_granularity] in supported_granularities.iter() {
+        for [subquery, _expected_granularity] in supported_granularities.iter() {
             let query = convert_simple_select(
                 format!("SELECT COUNT(*), {} AS __timestamp FROM KibanaSampleDataEcommerce GROUP BY __timestamp", subquery)
             );
@@ -3020,7 +3020,7 @@ mod tests {
             ),
         ];
 
-        for (sql_projection, sql_filter, expected_tdm) in to_check.iter() {
+        for (sql_projection, sql_filter, _expected_tdm) in to_check.iter() {
             let query = convert_simple_select(format!(
                 "SELECT
                 {}
@@ -3342,8 +3342,8 @@ mod tests {
             ),
         ];
 
-        for (sql, expected_fitler, expected_time_dimensions) in to_check.iter() {
-            let query = convert_simple_select(format!(
+        for (sql, _expected_fitler, _expected_time_dimensions) in to_check.iter() {
+            let _query = convert_simple_select(format!(
                 "SELECT
                 COUNT(*)
                 FROM KibanaSampleDataEcommerce
@@ -3620,8 +3620,8 @@ mod tests {
             ),
         ];
 
-        for (sql, expected_fitler) in to_check.iter() {
-            let query = convert_simple_select(format!(
+        for (sql, _expected_fitler) in to_check.iter() {
+            let _query = convert_simple_select(format!(
                 "SELECT
                 COUNT(*), DATE(order_date) AS __timestamp
                 FROM KibanaSampleDataEcommerce
