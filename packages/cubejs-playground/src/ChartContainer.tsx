@@ -369,6 +369,22 @@ class ChartContainer extends Component<
             </Button>
 
             <Button
+              data-testid="api-btn"
+              size="small"
+              type={showCode === 'api' ? 'primary' : 'default'}
+              disabled={!!frameworkItem?.placeholder || isFetchingMeta}
+              onClick={() => {
+                playgroundAction('Show Query');
+                this.setState({
+                  showCode: 'api',
+                });
+              }}
+            >
+              API
+            </Button>
+
+
+            <Button
               data-testid="graphiql-btn"
               icon={<GraphQLIcon />}
               size="small"
@@ -499,6 +515,9 @@ class ChartContainer extends Component<
         }
 
         return <PrismCode code={codeExample} />;
+      } else if (showCode === 'api') {
+        const url = this.props.apiUrl + '/load?query=' + queryText;
+        return <PrismCode code={window.encodeURI(url)} />;
       } else if (showCode === 'query') {
         return <PrismCode code={queryText} />;
       } else if (showCode === 'sql') {
@@ -541,7 +560,7 @@ class ChartContainer extends Component<
         if (!this.props.isGraphQLSupported) {
           return <div>GraphQL API is supported since version 0.29.0</div>
         }
-        
+
         return (
           <Suspense fallback={<div style={{ height: 363 }}><CubeLoader /></div>}>
             <GraphiQLSandbox
@@ -590,6 +609,25 @@ class ChartContainer extends Component<
             onClick={async () => {
               await copyToClipboard(JSON.stringify(query, null, 2));
               playgroundAction('Copy Query to Clipboard');
+            }}
+            type="primary"
+          >
+            Copy to Clipboard
+          </Button>
+        </SectionRow>
+      );
+    }  else if (showCode === 'api') {
+      title = (
+        <SectionRow>
+          <div>API</div>
+          <Button
+            data-testid="copy-cube-api-btn"
+            icon={<CopyOutlined />}
+            size="small"
+            onClick={async () => {
+              const url = this.props.apiUrl + '/load?query=' + queryText;
+              await copyToClipboard(window.encodeURI(url));
+              playgroundAction('Copy API to Clipboard');
             }}
             type="primary"
           >
