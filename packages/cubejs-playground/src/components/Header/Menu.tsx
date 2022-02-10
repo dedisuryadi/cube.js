@@ -18,29 +18,29 @@ export const StyledMenuItem = styled(Menu.Item)`
       &,
       &:hover {
         opacity: 0.6;
-        color: white;
+        color: #111;
       }
     }
     &.ant-menu-item-selected,
     &.ant-menu-item-active {
-      color: white;
-      border-bottom: 2px solid white;
+      color: #111;
+      border-bottom: 2px solid #111;
 
       &:hover {
-        border-bottom: 2px solid white;
+        border-bottom: 2px solid #111;
       }
 
       a {
         opacity: 1;
-        color: white;
+        color: #111;
       }
     }
 
     &:not(.ant-menu-item-selected) {
       &.ant-menu-item-active,
       &:hover {
-        color: white;
-        border-bottom: 2px solid white;
+        color: #111;
+        border-bottom: 2px solid #111;
       }
     }
   }
